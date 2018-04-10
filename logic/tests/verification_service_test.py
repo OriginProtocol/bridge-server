@@ -9,12 +9,13 @@ from database import db_models
 from logic import verification_service
 from testing import test_base
 from testing import test_data
+from web3 import Web3
 
 VC = db_models.VerificationCode
 VCD = test_data.VerificationCodeData
 
 def str_eth(numeric_eth_address):
-    return '0x{:02X}'.format(numeric_eth_address)
+    return Web3.toChecksumAddress(hex(numeric_eth_address))
 
 class VerificationServiceTest(test_base.DatabaseWithTestdataTest):
     def service(self):
