@@ -50,4 +50,4 @@ class VerificationService(apilib.Service):
     apilib.Method('verify_phone', VerifyPhoneRequest, VerifyPhoneResponse),
     apilib.Method('generate_email_verification_code', GenerateEmailVerificationCodeRequest, GenerateEmailVerificationCodeResponse),
     apilib.Method('verify_email', VerifyEmailRequest, VerifyEmailResponse),
-    apilib.Method('get_facebook_auth_url', GetFacebookAuthUrlRequest, GetFacebookAuthUrlResponse))
+    apilib.Method('facebook_auth_url', GetFacebookAuthUrlRequest, GetFacebookAuthUrlResponse))
