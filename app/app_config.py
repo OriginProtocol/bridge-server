@@ -5,7 +5,7 @@ import flask_migrate
 
 from config import settings
 from database import db
-from flask.ext.session import Session
+from flask_session import Session
 
 class AppConfig(object):
     SECRET_KEY = settings.FLASK_SECRET_KEY
