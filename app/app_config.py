@@ -5,9 +5,11 @@ import flask_migrate
 
 from config import settings
 from database import db
+from flask_session import Session
 
 class AppConfig(object):
     SECRET_KEY = settings.FLASK_SECRET_KEY
+    SESSION_TYPE = 'filesystem'
     CSRF_ENABLED = True
 
     SQLALCHEMY_DATABASE_URI = settings.DATABASE_URL
@@ -15,6 +17,8 @@ class AppConfig(object):
     SQLALCHEMY_ECHO = False
 
 def init_app(app):
+    sess = Session()
+    sess.init_app(app)
     db.init_app(app)
     flask_migrate.Migrate(app, db, directory='database/migrations')
 

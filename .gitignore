@@ -66,3 +66,6 @@ build_webpack/
 
 # Mac OS
 .DS_Store
+
+# Flask Session files
+*flask_session/
