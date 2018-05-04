@@ -107,7 +107,7 @@ class VerificationService:
             # If the client has requested a verification code already within
             # the last 10 seconds, throw a rate limit error, so they can't just
             # keep creating codes and guessing them rapidly.
-            raise EmailVericationError(
+            raise EmailVerifcationError(
                 'Please wait briefly before requesting'
                 ' a new verification code.')
         db_code.email = email
