@@ -13,7 +13,12 @@ from config import settings
 from database import db
 from database import db_models
 from flask import session
-from logic import service_utils
+from logic.service_utils import (
+    PhoneVerificationError,
+    EmailVerificationError,
+    FacebookVerificationError,
+    TwitterVerificationError
+)
 from sqlalchemy import func
 from util import time_, attestations
 from web3 import Web3, HTTPProvider
@@ -36,6 +41,11 @@ twitter_access_token_url = 'https://api.twitter.com/oauth/access_token'
 CODE_EXPIRATION_TIME_MINUTES = 30
 
 
+class VerificationServiceResponse():
+    def __init__(self, data={}):
+        self.data = data
+
+
 class VerificationService:
     def generate_phone_verification_code(phone):
         db_code = VC.query \
@@ -50,48 +60,41 @@ class VerificationService:
             # throw a rate limit error, so they can't just keep creating codes
             # and guessing them
             # rapidly.
-            raise service_utils.req_error(
-                code='RATE_LIMIT_EXCEEDED',
-                message=('Please wait briefly before requesting a new '
-                         'verification code.'))
+            raise PhoneVerificationError(
+                'Please wait briefly before requesting'
+                ' a new verification code.')
         db_code.phone = phone
         db_code.code = random_numeric_token()
         db_code.expires_at = time_.utcnow(
         ) + datetime.timedelta(minutes=CODE_EXPIRATION_TIME_MINUTES)
         db.session.commit()
         send_code_via_sms(phone, db_code.code)
-        return
+        return VerificationServiceResponse()
 
     def verify_phone(phone, code, eth_address):
         db_code = VC.query \
             .filter(VC.phone == phone) \
             .first()
         if db_code is None:
-            raise service_utils.req_error(
-                code='NOT_FOUND',
-                path='phone',
-                message='The given phone number was not found.')
+            raise PhoneVerificationError(
+                'The given phone number was not found.')
         if code != db_code.code:
-            raise service_utils.req_error(
-                code='INVALID',
-                path='code',
-                message='The code you provided is invalid.')
+            raise PhoneVerificationError('The code you provided'
+                                         ' is invalid.')
         if time_.utcnow() > db_code.expires_at:
-            raise service_utils.req_error(
-                code='EXPIRED',
-                path='code',
-                message='The code you provided has expired.')
+            raise PhoneVerificationError('The code you provided'
+                                         ' has expired.')
         # TODO: determine what the text should be
         data = 'phone verified'
         # TODO: determine claim type integer code for phone verification
         claim_type = 10
         signature = attestations.generate_signature(
             web3, signing_key, eth_address, claim_type, data)
-        return {
+        return VerificationServiceResponse({
             'signature': signature,
             'claim_type': claim_type,
             'data': data
-        }
+        })
 
     def generate_email_verification_code(email):
         db_code = VC.query \
@@ -104,37 +107,30 @@ class VerificationService:
             # If the client has requested a verification code already within
             # the last 10 seconds, throw a rate limit error, so they can't just
             # keep creating codes and guessing them rapidly.
-            raise service_utils.req_error(
-                code='RATE_LIMIT_EXCEEDED', message=(
-                    'Please wait briefly before requesting a '
-                    'new verification code.'))
+            raise EmailVerifcationError(
+                'Please wait briefly before requesting'
+                ' a new verification code.')
         db_code.email = email
         db_code.code = random_numeric_token()
         db_code.expires_at = time_.utcnow() + datetime.timedelta(
             minutes=CODE_EXPIRATION_TIME_MINUTES)
         db.session.commit()
         send_code_via_email(email, db_code.code)
-        return
+        return VerificationServiceResponse()
 
     def verify_email(email, code, eth_address):
         db_code = VC.query \
             .filter(func.lower(VC.email) == func.lower(email)) \
             .first()
         if db_code is None:
-            raise service_utils.req_error(
-                code='NOT_FOUND',
-                path='email',
-                message='The given email was not found.')
+            raise EmailVerificationError('The given email was'
+                                         ' not found.')
         if code != db_code.code:
-            raise service_utils.req_error(
-                code='INVALID',
-                path='code',
-                message='The code you provided is invalid.')
+            raise EmailVerificationError('The code you provided'
+                                         ' is invalid.')
         if time_.utcnow() > db_code.expires_at:
-            raise service_utils.req_error(
-                code='EXPIRED',
-                path='code',
-                message='The code you provided has expired.')
+            raise EmailVerificationError('The code you provided'
+                                         ' has expired.')
 
         # TODO: determine what the text should be
         data = 'email verified'
@@ -142,18 +138,18 @@ class VerificationService:
         claim_type = 11
         signature = attestations.generate_signature(
             web3, signing_key, eth_address, claim_type, data)
-        return {
+        return VerificationServiceResponse({
             'signature': signature,
             'claim_type': claim_type,
             'data': data
-        }
+        })
 
     def facebook_auth_url(redirect_url):
         client_id = settings.FACEBOOK_CLIENT_ID
         redirect_uri = append_trailing_slash(redirect_url)
         url = ('https://www.facebook.com/v2.12/dialog/oauth?client_id={}'
                '&redirect_uri={}').format(client_id, redirect_uri)
-        return {'url': url}
+        return VerificationServiceResponse({'url': url})
 
     def verify_facebook(redirect_url, code, eth_address):
         base_url = 'graph.facebook.com'
@@ -169,27 +165,25 @@ class VerificationService:
         response = json.loads(conn.getresponse().read())
         has_access_token = ('access_token' in response)
         if not has_access_token or 'error' in response:
-            raise service_utils.req_error(
-                code='INVALID',
-                path='code',
-                message='The code you provided is invalid.')
+            raise FacebookVerificationError(
+                'The code you provided is invalid.')
         # TODO: determine what the text should be
         data = 'facebook verified'
         # TODO: determine claim type integer code for phone verification
         claim_type = 3
         signature = attestations.generate_signature(
             web3, signing_key, eth_address, claim_type, data)
-        return {
+        return VerificationServiceResponse({
             'signature': signature,
             'claim_type': claim_type,
             'data': data
-        }
+        })
 
     def twitter_auth_url():
         client = oauth.Client(oauth_consumer)
         resp, content = client.request(twitter_request_token_url, 'GET')
         if resp['status'] != '200':
-            raise Exception('Invalid response from Twitter.')
+            raise TwitterVerificationError('Invalid response from Twitter.')
         as_bytes = dict(cgi.parse_qsl(content))
         token_b = as_bytes[b'oauth_token']
         token_secret_b = as_bytes[b'oauth_token_secret']
@@ -200,14 +194,12 @@ class VerificationService:
         url = '{}?oauth_token={}'.format(
             twitter_authenticate_url,
             request_token['oauth_token'])
-        return {'url': url}
+        return VerificationServiceResponse({'url': url})
 
     def verify_twitter(oauth_verifier, eth_address):
         # Verify authenticity of user
         if 'request_token' not in session:
-            raise service_utils.req_error(
-                code='INVALID',
-                message='Session not found.')
+            raise TwitterVerificationError('Session not found.')
         token = oauth.Token(session['request_token']['oauth_token'],
                             session['request_token']['oauth_token_secret'])
         token.set_verifier(oauth_verifier)
@@ -215,10 +207,8 @@ class VerificationService:
         resp, content = client.request(twitter_access_token_url, 'GET')
         access_token = dict(cgi.parse_qsl(content))
         if resp['status'] != '200' or b'oauth_token' not in access_token:
-            raise service_utils.req_error(
-                code='INVALID',
-                path='oauth_verifier',
-                message='The verifier you provided is invalid.')
+            raise TwitterVerificationError(
+                'The verifier you provided is invalid.')
 
         # Create attestation
         # TODO: determine what the text should be
@@ -227,11 +217,11 @@ class VerificationService:
         claim_type = 4
         signature = attestations.generate_signature(
             web3, signing_key, eth_address, claim_type, data)
-        return {
+        return VerificationServiceResponse({
             'signature': signature,
             'claim_type': claim_type,
             'data': data
-        }
+        })
 
 
 def numeric_eth(str_eth_address):
