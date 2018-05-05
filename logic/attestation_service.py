@@ -122,7 +122,15 @@ class VerificationService:
         db_code.expires_at = time_.utcnow() + datetime.timedelta(
             minutes=CODE_EXPIRATION_TIME_MINUTES)
         db.session.commit()
-        send_code_via_email(email, db_code.code)
+        try:
+            send_code_via_email(email, db_code.code)
+        # Sendgrid uses urllib exceptions
+        # https://github.com/sendgrid/sendgrid-python/issues/315
+        except Exception as e:
+            db.session.rollback()
+            raise EmailVerificationError(
+                'Could not send'
+                ' verification code.')
         return VerificationServiceResponse()
 
     def verify_email(email, code, eth_address):

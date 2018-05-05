@@ -166,6 +166,18 @@ def test_generate_email_verification_code_new_phone(MockHttpClient):
 
 
 @mock.patch('python_http_client.client.Client')
+def test_generate_email_verification_code_sendgrid_exception(MockHttpClient):
+    MockHttpClient.side_effect = Exception("generic exception")
+    email = 'hello@world.foo'
+    with pytest.raises(EmailVerificationError) as service_err:
+        VerificationService.generate_email_verification_code(email)
+    assert str(service_err.value) == 'Could not send verification code.'
+
+    db_code = VC.query.filter(VC.email == email).first()
+    assert db_code is None
+
+
+@mock.patch('python_http_client.client.Client')
 def test_generate_email_verification_code_email_already_in_db(
         MockHttpClient, session):
     vc_obj = VerificationCodeFactory.build()
