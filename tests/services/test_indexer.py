@@ -12,24 +12,6 @@ class TestDBIndexer():
         handler = EventHandler(web3=web3)
         listing_data = handler._fetch_listing_data(address)
 
-        event_names = ['NewListing(uint256)',
-                        'ListingPurchased(address)',
-                        'ListingChange()',
-                        'PurchaseChange(uint8)']
-        event_name_hashes = []
-        for name in event_names:
-            event_name_hashes.append(web3.sha3(text=name).hex())
-        filter = web3.eth.filter({
-#            "topics": [event_name_hashes],
-            "fromBlock": 0,
-            "toBlock": 'latest'
-        })
-        counter = 0
-        for event in events.get_all_entries():
-            print("EVENT RECEIVED: %s" % event)
-            counter += 1
-        assert counter == 100
-
         db_indexer = DatabaseIndexer()
         db_indexer.create_or_update_listing(listing_data)
 
