@@ -7,6 +7,7 @@ from eth_abi import decode_single
 from eth_utils import to_checksum_address
 
 from config import settings
+from enum import Enum
 
 
 class ContractHelper:
@@ -35,16 +36,18 @@ class ContractHelper:
             event_names(list[str]): List of event names.
             callback(function): Callback function
         """
+        if web3 is None:
+            web3 = self.web3
         event_name_hashes = []
         for name in event_names:
-            event_name_hashes.append(self.web3.sha3(text=name).hex())
-        self.event_filter = self.web3.eth.filter({
+            event_name_hashes.append(web3.sha3(text=name).hex())
+        self.event_filter = web3.eth.filter({
             "topics": [event_name_hashes],
             "fromBlock": block_from,
             "toBlock": block_to
         })
         for event in self.event_filter.get_all_entries():
-            callback(event)
+            callback(event, web3)
 
     def get_instance(self, contract_name, address):
         abi = self.get_contract_abi(contract_name)
@@ -67,6 +70,21 @@ class ContractHelper:
         return contract_interface['bytecode']
 
     @classmethod
+    def get_contract_enums(cls, contract_name, enum_name):
+        with open("./contracts/{}.json".format(contract_name)) as f:
+            contract_interface = json.loads(f.read())
+        for root_node in contract_interface['ast']['nodes']:
+            if root_node.get("nodeType") == "ContractDefinition" and root_node.get(
+                    "name") == contract_name:
+                for node in root_node["nodes"]:
+                    if node.get("canonicalName") == "%s.%s" % (
+                            contract_name, enum_name):
+                        members = node.get("members")
+                        if members and isinstance(members, list):
+                            return Enum(enum_name, " ".join(
+                                e["name"] for e in members), start=0)
+
+    @classmethod
     def convert_event_data(cls, event_type, data):
         if event_type == 'NewListing':
             return int(data, 0)
@@ -86,4 +104,4 @@ def get_contract_internal_name(contract):
     # create a 40 byte placeholder used in linked contracts
     contract_slice = contract[:36]
     return "__{name}{suffix}".format(name=contract_slice,
-                                     suffix=(38-len(contract_slice)) * '_')
+                                     suffix=(38 - len(contract_slice)) * '_')

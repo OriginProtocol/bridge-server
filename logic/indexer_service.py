@@ -8,6 +8,8 @@ from database.db_models import Listing, EventTracker, Purchase
 from util.contract import ContractHelper
 from util.ipfs import hex_to_base58, IPFSHelper
 from util.time_ import unix_to_datetime
+from logic.notifier_service import (notify_purchased, notify_listing,
+                                    notify_listing_update)
 
 
 class EventType(Enum):
@@ -67,6 +69,7 @@ class DatabaseIndexer():
             listing_obj.price = listing_data['price']
             listing_obj.units = listing_data['units']
         db.session.commit()
+        return listing_obj
 
     def create_or_update_purchase(self, purchase_data):
         """
@@ -82,7 +85,7 @@ class DatabaseIndexer():
             if purchase_obj.stage != purchase_data['stage']:
                 purchase_obj.stage = purchase_data['stage']
         db.session.commit()
-
+        return purchase_obj
 
 class SearchIndexer():
     """
@@ -196,26 +199,30 @@ class EventHandler(object):
         if event_type == EventType.NEW_LISTING:
             address = self._get_new_listing_address(payload)
             data = self._fetch_listing_data(address)
-            self.db_indexer.create_or_update_listing(data)
+            listing_obj = self.db_indexer.create_or_update_listing(data)
+            notify_listing(listing_obj)
             self.search_indexer.create_or_update_listing(data)
 
         elif event_type == EventType.LISTING_CHANGE:
             address = Web3.toChecksumAddress(payload['address'])
             data = self._fetch_listing_data(address)
-            self.db_indexer.create_or_update_listing(data)
+            listing_obj = self.db_indexer.create_or_update_listing(data)
+            notify_listing_update(listing_obj)
             self.search_indexer.create_or_update_listing(data)
 
         elif event_type == EventType.LISTING_PURCHASED:
             address = ContractHelper.convert_event_data('ListingPurchased',
                                                         payload['data'])
             data = self._fetch_purchase_data(address)
-            self.db_indexer.create_or_update_purchase(data)
+            purchase_obj = self.db_indexer.create_or_update_purchase(data)
+            notify_purchased(purchase_obj)
             self.search_indexer.create_or_update_purchase(data)
 
         elif event_type == EventType.PURCHASE_CHANGE:
             address = Web3.toChecksumAddress(payload['address'])
             data = self._fetch_purchase_data(address)
-            self.db_indexer.create_or_update_purchase(data)
+            purchase_obj = self.db_indexer.create_or_update_purchase(data)
+            notify_purchased(purchase_obj)
             self.search_indexer.create_or_update_purchase(data)
 
         else:
