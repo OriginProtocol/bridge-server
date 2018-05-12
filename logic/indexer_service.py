@@ -5,11 +5,11 @@ from web3 import Web3
 
 from database import db
 from database.db_models import Listing, EventTracker, Purchase
+from logic.notifier_service import Notifier
+from logic.search_service import SearchIndexer
 from util.contract import ContractHelper
 from util.ipfs import hex_to_base58, IPFSHelper
 from util.time_ import unix_to_datetime
-from logic.notifier_service import (notify_purchased, notify_listing,
-                                    notify_listing_update)
 
 
 class EventType(Enum):
@@ -29,20 +29,18 @@ EVENT_HASH_TO_EVENT_TYPE_MAP = {
 
 class DatabaseIndexer():
     """
-    The DatabaseIndexer persists events in a relational database.
+    DatabaseIndexer persists events in a relational database.
     """
-    def __init__(self):
-        pass
-
-    def create_or_update_listing(self, listing_data):
+    @classmethod
+    def create_or_update_listing(cls, listing_data):
         """
         Creates a new or updates an existing Listing row in the database.
         """
-        # Do not include pictures since that data should not
-        # get persisted in the database.
-        listing_obj = Listing.query\
-            .filter_by(contract_address=listing_data['contract_address']).first()
+        listing_obj = Listing.query .filter_by(
+            contract_address=listing_data['contract_address']).first()
 
+        # Filter out pictures from the ipfs data that gets
+        # persisting in the database.
         exclude_ipfs_fields = ['pictures']
 
         if not listing_obj:
@@ -71,12 +69,13 @@ class DatabaseIndexer():
         db.session.commit()
         return listing_obj
 
-    def create_or_update_purchase(self, purchase_data):
+    @classmethod
+    def create_or_update_purchase(cls, purchase_data):
         """
         Creates a new or updates an existing Purchase row in the database.
         """
-        purchase_obj = Purchase.query\
-            .filter_by(contract_address=purchase_data['contract_address']).first()
+        purchase_obj = Purchase.query .filter_by(
+            contract_address=purchase_data['contract_address']).first()
 
         if not purchase_obj:
             purchase_obj = Purchase(**purchase_data)
@@ -87,45 +86,26 @@ class DatabaseIndexer():
         db.session.commit()
         return purchase_obj
 
-class SearchIndexer():
-    """
-    The SearchIndexer indexes events in a search engine.
-    This implementation uses ElasticSearch.
-    """
-    def __init__(self):
-        # TODO(franck): initialize the ElasticSearch client here.
-        pass
 
-    def create_or_update__listing(self, listing_data):
-        # TODO(franck): implement
-        pass
-
-    def create_or_update_purchase(self, purchase_data):
-        # TODO(franck): implement
-        pass
-
-
-class EventHandler(object):
+class EventHandler():
     """
     EventHandler receives contract events, loads any necessary additional data
     and calls the appropriate indexer or notifier backends.
     """
-    def __init__(self, db_indexer=None, search_indexer=None, web3=None):
+
+    def __init__(self, db_indexer=None, notifier=None,
+                 search_indexer=None, web3=None):
         """
         Constructor with optional arguments that can be used to inject
-        mocks during testing.
+        mocks for testing.
         """
-        if db_indexer:
-            self.db_indexer = db_indexer
-        else:
-            self.db_indexer = DatabaseIndexer()
-        if search_indexer:
-            self.search_indexer = search_indexer
-        else:
-            self.search_indexer = SearchIndexer()
+        self.db_indexer = db_indexer if db_indexer else DatabaseIndexer()
+        self.notifier = notifier if notifier else Notifier()
+        self.search_indexer = search_indexer if search_indexer else SearchIndexer()
         self.web3 = web3
 
-    def _update_tracker(self, block_number):
+    @classmethod
+    def _update_tracker(cls, block_number):
         """
         Updates the block_number in the event_tracker db table. This acts as
         a cursor to keep track of blocks that have been processed so far.
@@ -134,7 +114,8 @@ class EventHandler(object):
         event_tracker.last_read = block_number
         db.session.commit()
 
-    def _get_event_type(self, event_hash):
+    @classmethod
+    def _get_event_type(cls, event_hash):
         """
         Returns EventType based on event_hash.
         """
@@ -146,9 +127,9 @@ class EventHandler(object):
         """
         contract_helper = ContractHelper(web3=self.web3)
         contract = contract_helper.get_instance('ListingsRegistry',
-                                            payload['address'])
+                                                payload['address'])
         registry_index = contract_helper.convert_event_data('NewListing',
-                                                        payload['data'])
+                                                            payload['data'])
         listing_data = contract.functions.getListing(registry_index).call()
         return listing_data[0]
 
@@ -200,14 +181,14 @@ class EventHandler(object):
             address = self._get_new_listing_address(payload)
             data = self._fetch_listing_data(address)
             listing_obj = self.db_indexer.create_or_update_listing(data)
-            notify_listing(listing_obj)
+            self.notifier.notify_listing(listing_obj)
             self.search_indexer.create_or_update_listing(data)
 
         elif event_type == EventType.LISTING_CHANGE:
             address = Web3.toChecksumAddress(payload['address'])
             data = self._fetch_listing_data(address)
             listing_obj = self.db_indexer.create_or_update_listing(data)
-            notify_listing_update(listing_obj)
+            self.notifier.notify_listing_update(listing_obj)
             self.search_indexer.create_or_update_listing(data)
 
         elif event_type == EventType.LISTING_PURCHASED:
@@ -215,19 +196,19 @@ class EventHandler(object):
                                                         payload['data'])
             data = self._fetch_purchase_data(address)
             purchase_obj = self.db_indexer.create_or_update_purchase(data)
-            notify_purchased(purchase_obj)
+            self.notifier.notify_purchased(purchase_obj)
             self.search_indexer.create_or_update_purchase(data)
 
         elif event_type == EventType.PURCHASE_CHANGE:
             address = Web3.toChecksumAddress(payload['address'])
             data = self._fetch_purchase_data(address)
             purchase_obj = self.db_indexer.create_or_update_purchase(data)
-            notify_purchased(purchase_obj)
+            self.notifier.notify_purchased(purchase_obj)
             self.search_indexer.create_or_update_purchase(data)
 
         else:
             logging.info("Received unexpected event type %s hash %s",
-                event_type, event_hash)
+                         event_type, event_hash)
 
         # After successfully processing the event, update the event tracker.
         self._update_tracker(payload['blockNumber'])

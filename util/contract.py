@@ -26,8 +26,7 @@ class ContractHelper:
             self.web3.middleware_stack.inject(geth_poa_middleware, layer=0)
 
     def fetch_events(self, event_names, callback,
-                     block_from=0, block_to='latest',
-                     web3=None):
+                     block_from=0, block_to='latest'):
         """
         Makes an RPC call to the Ethereum network to fetch events by name.
         Calls the callback function for each event fetched, if any.
@@ -36,18 +35,16 @@ class ContractHelper:
             event_names(list[str]): List of event names.
             callback(function): Callback function
         """
-        if web3 is None:
-            web3 = self.web3
         event_name_hashes = []
         for name in event_names:
-            event_name_hashes.append(web3.sha3(text=name).hex())
-        self.event_filter = web3.eth.filter({
+            event_name_hashes.append(self.web3.sha3(text=name).hex())
+        self.event_filter = self.web3.eth.filter({
             "topics": [event_name_hashes],
             "fromBlock": block_from,
             "toBlock": block_to
         })
         for event in self.event_filter.get_all_entries():
-            callback(event, web3)
+            callback(event)
 
     def get_instance(self, contract_name, address):
         abi = self.get_contract_abi(contract_name)

@@ -54,15 +54,16 @@ def event_listener(web3=None):
         db.session.commit()
 
     # Create an event handler and attempt to fetch events from the network.
-    handler = EventHandler()
+    handler = EventHandler(web3=web3)
     ContractHelper().fetch_events(['NewListing(uint256)',
-                                    'ListingPurchased(address)',
-                                    'ListingChange()',
-                                    'PurchaseChange(uint8)'],
+                                   'ListingPurchased(address)',
+                                   'ListingChange()',
+                                   'PurchaseChange(uint8)'],
                                   block_from=event_tracker.last_read,
                                   block_to='latest',
                                   callback=handler.process,
                                   web3=web3)
+
 
 @celery.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
