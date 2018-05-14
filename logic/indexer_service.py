@@ -39,31 +39,23 @@ class DatabaseIndexer():
         listing_obj = Listing.query .filter_by(
             contract_address=listing_data['contract_address']).first()
 
-        # Filter out pictures from the ipfs data that gets
-        # persisting in the database.
-        exclude_ipfs_fields = ['pictures']
+        # Load IPFS data. Note: we filter out pictures since those should
+        # not get persisted in the database.
+        listing_data['ipfs_data'] = \
+            IPFSHelper().file_from_hash(listing_data['ipfs_hash'],
+                                        root_attr='data',
+                                        exclude_fields=['pictures'])
 
         if not listing_obj:
             # No existing Listing in the DB.
             # Download content from IPFS then insert new row in the DB.
-            listing_data['ipfs_data'] = \
-                IPFSHelper().file_from_hash(listing_data['ipfs_hash'],
-                                            root_attr='data',
-                                            exclude_fields=exclude_ipfs_fields)
             listing_obj = Listing(**listing_data)
             db.session.add(listing_obj)
         else:
-            # Existing Listing in the DB.
-            # If IPFS hash changed, download the content.
-            # Then update the row in the DB.
+            # Update existing Listing in the DB.
             if listing_obj.ipfs_hash != listing_data['ipfs_hash']:
                 listing_obj.ipfs_hash = listing_data['ipfs_hash']
-                listing_data['ipfs_data'] = \
-                    IPFSHelper().file_from_hash(listing_data['ipfs_hash'],
-                                                root_attr='data',
-                                                exclude_fields=exclude_ipfs_fields)
                 listing_obj.ipfs_data = listing_data['ipfs_data']
-
             listing_obj.price = listing_data['price']
             listing_obj.units = listing_data['units']
         db.session.commit()
@@ -181,7 +173,7 @@ class EventHandler():
             address = self._get_new_listing_address(payload)
             data = self._fetch_listing_data(address)
             listing_obj = self.db_indexer.create_or_update_listing(data)
-            self.notifier.notify_listing(listing_obj)
+            #self.notifier.notify_listing(listing_obj)
             self.search_indexer.create_or_update_listing(data)
 
         elif event_type == EventType.LISTING_CHANGE:

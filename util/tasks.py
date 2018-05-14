@@ -61,8 +61,7 @@ def event_listener(web3=None):
                                    'PurchaseChange(uint8)'],
                                   block_from=event_tracker.last_read,
                                   block_to='latest',
-                                  callback=handler.process,
-                                  web3=web3)
+                                  callback=handler.process)
 
 
 @celery.on_after_configure.connect
