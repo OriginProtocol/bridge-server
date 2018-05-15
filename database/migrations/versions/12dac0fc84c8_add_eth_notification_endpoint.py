@@ -22,10 +22,12 @@ def upgrade():
                     sa.Column('id', sa.Integer(), nullable=False),
                     sa.Column('eth_address', sa.String(length=255), nullable=True),
                     sa.Column('device_token', sa.String(length=255), nullable=True),
-                    sa.Column('type', sa.Enum('APN', 'FCM', name='ethnotificationtypes'), nullable=True),
+                    sa.Column('type', sa.Enum('APN', 'FCM', name='ethnotificationtypes'),
+                              nullable=True),
                     sa.Column('active', sa.Boolean(), nullable=True),
                     sa.Column('verified', sa.Boolean(), nullable=True),
-                    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+                    sa.Column('created_at', sa.DateTime(timezone=True),
+                              server_default=sa.text('now()'), nullable=True),
                     sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
                     sa.PrimaryKeyConstraint('id')
                     )
