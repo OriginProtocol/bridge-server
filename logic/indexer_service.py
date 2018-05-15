@@ -173,7 +173,7 @@ class EventHandler():
             address = self._get_new_listing_address(payload)
             data = self._fetch_listing_data(address)
             listing_obj = self.db_indexer.create_or_update_listing(data)
-            #self.notifier.notify_listing(listing_obj)
+            self.notifier.notify_listing(listing_obj)
             self.search_indexer.create_or_update_listing(data)
 
         elif event_type == EventType.LISTING_CHANGE:
