@@ -9,8 +9,9 @@ from config import settings
 class SearchIndexer():
     """
     SearchIndexer indexes events in a search engine.
-    This implementation uses "Bonsai ElasticSearch" provided
-    as a Heroku Add-on.
+
+    In prod environment, this implementation uses "Bonsai ElasticSearch" which
+    is a hosted solution provided as a Heroku Add-on.
     """
 
     def __init__(self, client=None):
