@@ -91,3 +91,5 @@ APNS_APP_BUNDLE_ID = get_env_default('APNS_APP_BUNDLE_ID')
 
 FCM_API_KEY = get_env_default('FCM_API_KEY')
 FCM_TITLE = get_env_default('FCM_TITLE')
+
+BONSAI_URL = get_env_default('BONSAI_URL')
