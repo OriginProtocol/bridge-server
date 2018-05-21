@@ -12,6 +12,7 @@ class StandardResponse(Schema):
 
 def handle_request(data, handler, request_schema, response_schema):
     try:
+        print("REQUEST DATA: %s" % data)
         req = request_schema().load(data)
     # Handle validation errors
     except ValidationError as validation_err:
