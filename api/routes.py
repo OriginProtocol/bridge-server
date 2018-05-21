@@ -3,7 +3,6 @@ from api.modules import attestations, search
 
 def add_resources(api, resources, namespace):
     for path, resource in resources.items():
-        print("Adding resource %s -> %s" % (resource, namespace+path))
         api.add_resource(resource, namespace + path)
 
 

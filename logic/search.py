@@ -76,8 +76,6 @@ class SearchClient(Singleton):
         # Construct the query.
         query = query_template % (offset, num, query, query, filter_clause)
 
-        print("ES QUERY:", query)
-
         # Query the search engine.
         res = self.client.search(
             index=["origin"],
