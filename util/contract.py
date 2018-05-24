@@ -49,7 +49,8 @@ class ContractHelper:
 
         for event in self.event_filter.get_all_entries():
             if block_from == event['blockNumber']:
-                if transaction_index == event['transactionIndex'] and log_index == event['logIndex']:
+                if transaction_index == event['transactionIndex']\
+                        and log_index == event['logIndex']:
                     # switch on the process_events flag and continue since
                     # we last read uptil this point
                     process_events = True
