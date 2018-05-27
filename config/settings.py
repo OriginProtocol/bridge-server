@@ -95,4 +95,3 @@ FCM_TITLE = get_env_default('FCM_TITLE')
 BIND_HOST = get_env_default("BIND_HOST")
 
 BONSAI_URL = get_env_default('BONSAI_URL')
-
