@@ -65,8 +65,11 @@ class SearchIndexer():
 
     def create_or_update_purchase(self, purchase_data):
         # TODO(franck): delete the Listing from the index if no unit left.
+<<<<<<< HEAD
         pass
 
     def create_or_update_review(self, review_data):
         # TODO(gagan): implement
+=======
+>>>>>>> 45b483a1dbda2d051e1b5be2d9f28c222ad80b3e
         pass
