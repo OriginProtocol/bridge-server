@@ -1,7 +1,7 @@
-import re
 import logging
 
 from elasticsearch import Elasticsearch
+from urllib.parse import urlparse
 
 from config import settings
 
@@ -22,18 +22,16 @@ class SearchIndexer():
             # Point to local ElasticSearch instance running on local host.
             self.client = Elasticsearch()
         else:
-            # Prod environment. Parse the auth and host from BONSAI_URL env.
-            bonsai = settings.BONSAI_URL
-            assert bonsai
-            (user, pwd) = re.search(r'https://(.*)@', bonsai).group(1).split(':')
-            host = bonsai.replace('https://%s:%s@' % (user, pwd), '')
+            # Prod environment. Parse the BONSAI_URL env variable.
+            assert settings.BONSAI_URL
+            url = urlparse(settings.BONSAI_URL)
 
-            # Connect to cluster over SSL using auth for best security:
+            # Connect to cluster over SSL using auth for best security.
             es_header = [{
-                'host': host,
+                'host': url.hostname,
                 'port': 443,
                 'use_ssl': True,
-                'http_auth': (user, pwd)
+                'http_auth': (url.username, url.password),
             }]
 
             # Instantiate an Elasticsearch client.
