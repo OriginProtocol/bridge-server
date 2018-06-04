@@ -78,7 +78,7 @@ You'll need to set a few API keys:
   - TWITTER_CONSUMER_KEY
   - TWITTER_CONSUMER_SECRET
 
-For EnvKey support set ENVKEY to the key of the generated local developement key
+For [EnvKey](https://www.envkey.com/) support, set ENVKEY to the key of the generated local development key.
 
 When deploying, set appropriate environment variables for production, notably
 
