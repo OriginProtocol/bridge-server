@@ -423,4 +423,3 @@ def purchase_stage_buyer_pending(web3, wait_for_transaction, wait_for_block,
     assert deploy_receipt["gasUsed"] > 0
 
     return purchase_contract
-
