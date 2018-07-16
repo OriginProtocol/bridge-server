@@ -6,7 +6,10 @@ from api.helpers import StandardRequest, StandardResponse, handle_request
 
 
 class PhoneVerificationCodeRequest(StandardRequest):
+    country_calling_code = fields.Str(required=True)
     phone = fields.Str(required=True)
+    method = fields.Str(missing='sms')
+    locale = fields.Str(missing=None)
 
 
 class PhoneVerificationCodeResponse(StandardResponse):
@@ -15,6 +18,7 @@ class PhoneVerificationCodeResponse(StandardResponse):
 
 class VerifyPhoneRequest(StandardRequest):
     eth_address = fields.Str(required=True, data_key='identity')
+    country_calling_code = fields.Str(required=True)
     phone = fields.Str(required=True)
     code = fields.Str(required=True)
 
@@ -102,7 +106,7 @@ class PhoneVerificationCode(Resource):
     def post(self):
         return handle_request(
             data=request.json,
-            handler=VerificationService.generate_phone_verification_code,
+            handler=VerificationService.request_phone_verification,
             request_schema=PhoneVerificationCodeRequest,
             response_schema=PhoneVerificationCodeResponse)
 
