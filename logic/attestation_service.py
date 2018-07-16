@@ -95,10 +95,10 @@ class VerificationService:
             response.raise_for_status()
         except requests.exceptions.HTTPError as exc:
             if response.json()['error_code'] == "60033":
-                raise ValidationError('Phone number is invalid',
-                                      fields_names=['phone'])
-            elif response.json()['error_code'] == "60083":
-                raise ValidationError('Cannot send SMS to landline',
+                raise ValidationError('Phone number is invalid.',
+                                      field_names=['phone'])
+            elif response.json()['error_code'] == "60082":
+                raise ValidationError('Cannot send SMS to landline.',
                                       field_names=['phone'])
             else:
                 # Remaining error codes are due to Twilio account issues or
