@@ -141,13 +141,26 @@ class VerificationService:
         url = 'https://api.authy.com/protected/json/phones/verification/status'
         response = requests.get(url, params=params, headers=headers)
 
-        if response.json()['status'] == 'expired':
-            raise ValidationError('Verification code has expired.',
-                                  field_names=['code'])
-        elif not response.json()['success']:
-            raise ValidationError('Verification code is incorrect.',
-                                  field_names=['code'])
-        else:
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as exc:
+            if response.json()['error_code'] == '60023':
+                # This error code could also mean that no phone verification was ever
+                # created for that country calling code and phone number
+                raise ValidationError('Verification code has expired.',
+                                      field_names=['code'])
+            elif response.json()['error_code'] == '60022':
+                raise ValidationError('Verification code is incorrect.',
+                                      field_names=['code'])
+            else:
+                raise PhoneVerificationError(
+                    'Could not verify code. Please try again shortly.'
+                )
+
+        if response.json()['success'] is True:
+            # This may be unnecessary because the response has a 200 status code
+            # but it a good precaution to handle any inconsistency between the
+            # success field and the status code
             data = 'phone verified'
             # TODO: determine claim type integer code for phone verification
             signature = attestations.generate_signature(
@@ -157,6 +170,10 @@ class VerificationService:
                 'claim_type': CLAIM_TYPES['phone'],
                 'data': data
             })
+
+        raise PhoneVerificationError(
+            'Could not verify code. Please try again shortly.'
+        )
 
     def generate_email_verification_code(email):
         db_code = VC.query \
