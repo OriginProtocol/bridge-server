@@ -55,7 +55,7 @@ class VerificationServiceResponse():
 
 class VerificationService:
 
-    def request_phone_verification(country_calling_code, phone, method, locale):
+    def send_phone_verification(country_calling_code, phone, method, locale):
         """Request a phone number verification using the Twilio Verify API.
 
         Args:

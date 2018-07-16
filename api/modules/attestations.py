@@ -106,7 +106,7 @@ class PhoneVerificationCode(Resource):
     def post(self):
         return handle_request(
             data=request.json,
-            handler=VerificationService.request_phone_verification,
+            handler=VerificationService.send_phone_verification,
             request_schema=PhoneVerificationCodeRequest,
             response_schema=PhoneVerificationCodeResponse)
 
@@ -193,7 +193,6 @@ class VerifyAirbnb(Resource):
 
 
 resources = {
-    # 'hello-world-path': HelloWorldResource
     'phone/generate-code': PhoneVerificationCode,
     'phone/verify': VerifyPhone,
     'email/generate-code': EmailVerificationCode,
