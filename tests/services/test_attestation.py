@@ -23,7 +23,7 @@ SIGNATURE_LENGTH = 132
 
 
 @responses.activate
-def test_request_phone_verification_success():
+def test_send_phone_verification_success():
     responses.add(
         responses.POST,
         'https://api.authy.com/protected/json/phones/verification/start',
@@ -36,12 +36,12 @@ def test_request_phone_verification_success():
         'method': 'sms',
         'locale': None
     }
-    response = VerificationService.request_phone_verification(**args)
+    response = VerificationService.send_phone_verification(**args)
     assert isinstance(response, VerificationServiceResponse)
 
 
 @responses.activate
-def test_request_phone_verification_invalid_number():
+def test_send_phone_verification_invalid_number():
     responses.add(
         responses.POST,
         'https://api.authy.com/protected/json/phones/verification/start',
@@ -56,14 +56,14 @@ def test_request_phone_verification_invalid_number():
         'locale': None
     }
     with pytest.raises(ValidationError) as validation_err:
-        VerificationService.request_phone_verification(**args)
+        VerificationService.send_phone_verification(**args)
 
     assert(validation_err.value.messages[0]) == 'Phone number is invalid.'
     assert(validation_err.value.field_names[0]) == 'phone'
 
 
 @responses.activate
-def test_request_phone_verification_cant_sms_landline():
+def test_send_phone_verification_cant_sms_landline():
     responses.add(
         responses.POST,
         'https://api.authy.com/protected/json/phones/verification/start',
@@ -78,14 +78,14 @@ def test_request_phone_verification_cant_sms_landline():
         'locale': None
     }
     with pytest.raises(ValidationError) as validation_err:
-        VerificationService.request_phone_verification(**args)
+        VerificationService.send_phone_verification(**args)
 
     assert(validation_err.value.messages[0]) == 'Cannot send SMS to landline.'
     assert(validation_err.value.field_names[0]) == 'phone'
 
 
 @responses.activate
-def test_request_phone_verification_twilio_error():
+def test_send_phone_verification_twilio_error():
     responses.add(
         responses.POST,
         'https://api.authy.com/protected/json/phones/verification/start',
@@ -100,7 +100,7 @@ def test_request_phone_verification_twilio_error():
         'locale': None
     }
     with pytest.raises(PhoneVerificationError) as service_err:
-        VerificationService.request_phone_verification(**args)
+        VerificationService.send_phone_verification(**args)
 
     assert(str(service_err.value)) == \
         'Could not send verification code. Please try again shortly.'
