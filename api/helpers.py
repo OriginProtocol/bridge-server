@@ -45,4 +45,4 @@ def handle_request(data, handler, request_schema, response_schema):
         resp = {
             'errors': [str(service_err)]
         }
-        return response_schema().dump(resp), 422
+        return response_schema().dump(resp), service_err.status_code
