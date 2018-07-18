@@ -457,13 +457,13 @@ def test_generate_airbnb_verification_code():
 
 
 def test_generate_airbnb_verification_code_incorrect_user_id_format():
-    with pytest.raises(AirbnbVerificationError) as service_err:
+    with pytest.raises(ValidationError) as validation_error:
         VerificationService.generate_airbnb_verification_code(
             '0x112234455C3a32FD11230C42E7Bccd4A84e02010',
             '12a34'
         )
 
-    assert str(service_err.value) == 'AirbnbUserId should be a number.'
+    assert str(validation_error.value) == 'AirbnbUserId should be a number.'
 
 
 @mock.patch('logic.attestation_service.urlopen')
@@ -534,13 +534,13 @@ def test_verify_airbnb_verification_code_incorrect_user_id_format(
         some more profile description
         </div></html>""".encode('utf-8')
 
-    with pytest.raises(AirbnbVerificationError) as service_err:
+    with pytest.raises(ValidationError) as validation_error:
         VerificationService.verify_airbnb(
             '0x112234455C3a32FD11230C42E7Bccd4A84e02010',
             "12a34"
         )
 
-    assert str(service_err.value) == 'AirbnbUserId should be a number.'
+    assert str(validation_error.value) == 'AirbnbUserId should be a number.'
 
 
 @mock.patch('logic.attestation_service.urlopen', side_effect=HTTPError(

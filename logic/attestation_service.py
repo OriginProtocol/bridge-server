@@ -338,7 +338,7 @@ class VerificationService:
 
     def generate_airbnb_verification_code(eth_address, airbnbUserId):
         if not re.compile(r"^\d*$").match(airbnbUserId):
-            raise AirbnbVerificationError('AirbnbUserId should be a number.')
+            raise ValidationError('AirbnbUserId should be a number.', 'airbnbUserId')
 
         return VerificationServiceResponse({
             'code': get_airbnb_verification_code(eth_address, airbnbUserId)
@@ -346,7 +346,7 @@ class VerificationService:
 
     def verify_airbnb(eth_address, airbnbUserId):
         if not re.compile(r"^\d*$").match(airbnbUserId):
-            raise AirbnbVerificationError('AirbnbUserId should be a number.')
+            raise ValidationError('AirbnbUserId should be a number.', 'airbnbUserId')
 
         code = get_airbnb_verification_code(eth_address, airbnbUserId)
 
