@@ -130,7 +130,7 @@ class VerificationService:
         """
         params = {
             'country_code': country_calling_code,
-            'phone': phone,
+            'phone_number': phone,
             'verification_code': code
         }
 
