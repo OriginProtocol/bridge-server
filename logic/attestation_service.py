@@ -188,7 +188,7 @@ class VerificationService:
             # keep creating codes and guessing them rapidly.
             raise EmailVerificationError(
                 'Please wait briefly before requesting'
-                ' a new verification code.')
+                ' a new verification code.', status_code=429)
         db_code.email = email
         db_code.code = random_numeric_token()
         db_code.expires_at = time_.utcnow() + datetime.timedelta(
