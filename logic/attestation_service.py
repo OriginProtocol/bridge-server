@@ -337,16 +337,14 @@ class VerificationService:
         })
 
     def generate_airbnb_verification_code(eth_address, airbnbUserId):
-        if not re.compile(r"^\d*$").match(airbnbUserId):
-            raise ValidationError('AirbnbUserId should be a number.', 'airbnbUserId')
+        validate_airbnb_user_id(airbnbUserId)
 
         return VerificationServiceResponse({
             'code': get_airbnb_verification_code(eth_address, airbnbUserId)
         })
 
     def verify_airbnb(eth_address, airbnbUserId):
-        if not re.compile(r"^\d*$").match(airbnbUserId):
-            raise ValidationError('AirbnbUserId should be a number.', 'airbnbUserId')
+        validate_airbnb_user_id(airbnbUserId)
 
         code = get_airbnb_verification_code(eth_address, airbnbUserId)
 
@@ -402,6 +400,13 @@ def get_airbnb_verification_code(eth_address, airbnbUserid):
                 )
             )
         )
+
+
+def validate_airbnb_user_id(airbnbUserId):
+    if not re.compile(r"^\d*$").match(airbnbUserId):
+        raise ValidationError(
+            'AirbnbUserId should be a number.',
+            'airbnbUserId')
 
 
 def numeric_eth(str_eth_address):
