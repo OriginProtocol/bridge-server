@@ -20,9 +20,10 @@ const ipfsURL = new url.parse(process.env.MESSAGING_IPFS_URL)
 const ipfs_opts = {host:ipfsURL.hostname, port:ipfsURL.port, protocol:ipfsURL.protocol.slice(0, -1)}
 console.log("opts:", ipfs_opts)
 
-if (process.env.MESSAGING_IPFS_TOKEN) {
+if (process.env.MESSAGING_IPFS_AUTH_TOKEN) {
+  console.log("Auth token is:", process.env.MESSAGING_IPFS_AUTH_TOKEN)
   ipfs_opts["headers"] = {
-    authorization: 'Bearer ' + process.env.MESSAGING_IPFS_TOKEN
+    authorization: process.env.MESSAGING_IPFS_AUTH_TOKEN
   }
 }
 const ipfs = ipfsAPI(ipfs_opts)
