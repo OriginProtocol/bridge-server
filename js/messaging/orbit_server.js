@@ -100,9 +100,7 @@ class InsertOnlyKeystore {
 function verifyRegistrySignature(signature, key, message) {
   const value = message.payload.value
   const set_key = message.payload.key
-  //console.log("Verify Registry:", message, " key: ", key, " sig: ", signature)
   const verify_address = web3.eth.accounts.recover(value.msg, signature)
-  //console.log("Verify address:", verify_address)
   if (verify_address == set_key && value.msg.includes(value.address))
   {
     const extracted_address = "0x" + web3.utils.sha3(value.pub_key).substr(-40)
