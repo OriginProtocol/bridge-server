@@ -1,6 +1,6 @@
 ![origin_github_banner](https://user-images.githubusercontent.com/673455/37314301-f8db9a90-2618-11e8-8fee-b44f38febf38.png)
 
-# bridge-server
+# Origin Bridge Server
 
 The Origin Bridge Server connects the old world to the new.
 
@@ -45,8 +45,8 @@ brew install automake autoconf libtool
 ### Set Up A Virtual Environment
 
 ```bash
-git clone https://github.com/OriginProtocol/bridge-server.git
-cd bridge-server
+git clone https://github.com/OriginProtocol/origin-bridge.git
+cd origin-bridge
 
 python3 -m venv ve
 
@@ -57,14 +57,86 @@ pip install -r requirements.txt
 
 ### Clone the Starter Configuration Variables
 
-```python
+```bash
 cp dev.env .env
-
 ```
-Adjust the values in .env now and in the future to suit your local environment. In particular, set up your ```DATABASE_URL```
-to point to where you local database is or will be.
+Adjust the values in .env now and in the future to suit your local environment. 
 
-You'll need to set a few API keys:
+For [EnvKey](https://www.envkey.com/) support, set ENVKEY to the key of the
+generated local development key.
+
+#### Flask secret
+Set ```FLASK_SECRET_KEY``` to your unique Flask secret key. Use a unique Flask secret key per environment. Flask suggests that
+```python -c "import os; print(os.urandom(24))"```
+is a perfectly reasonable way to generate a secret key.
+
+#### Database
+Set up your ```DATABASE_URL``` to point to where you local database is or will be.
+
+#### Indexing server
+Enviroment keys for Indexing server:
+
+*Contracts*
+
+- `CONTRACT_DIR`: Set this to the directory where the Solidity contracts have been compiled. Example configurations:
+
+    - Local deployment:
+       `CONTRACT_DIR=contracts`
+    - Origin-box deployment:
+       ```CONTRACT_DIR=contracts_dev```
+
+*Redis*
+
+- `REDIS_URL`: Set this to point to your local Redis server.
+For example `REDIS_URL=redis://127.0.0.1:6379/0`
+
+*Web3*
+
+- `RPC_SERVER`: Set this to RPC server URL, you want the indexing server
+to listen to events on.
+- `RPC_PROTOCOL`: Connection protocols for RPC server.
+Options are `https` or `wss`
+
+  Example configurations:
+    - To connect to Rinkeby Testnet:
+
+      ```
+      RPC_SERVER=wss://rinkeby.infura.io/_ws
+      RPC_PROTOCOL=wss
+      ```
+
+    - To connect to a local RPC server:
+
+      ```
+      RPC_SERVER=http://127.0.0.1:8545/
+      RPC_PROTOCOL=https
+      ```
+
+*IPFS*
+
+- `IPFS_DOMAIN`: Set this to the domain of an IPFS daemon.
+- `IPFS_PORT`: port on which the IPFS daemon is listening.
+
+  Example configurations:
+
+    - To connect to the Origin IPFS gateway:
+
+      ```
+      IPFS_DOMAIN=gateway.originprotocol.com
+      IPFS_PORT=8080
+      ```
+
+    - To connect to a local IPFS server:
+
+      ```
+      IPFS_DOMAIN=127.0.0.1
+      IPFS_PORT=5002
+      ```
+
+#### Identity attestation
+This is optional - only define these environment keys if you want to use your
+bridge server deployment as an endpoint for the DApp identity attestation functionality.
+
 - [Facebook](https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow)
   - FACEBOOK_CLIENT_ID
   - FACEBOOK_CLIENT_SECRET
@@ -72,16 +144,24 @@ You'll need to set a few API keys:
   - SENDGRID_API_KEY
   - SENDGRID_FROM_EMAIL
 - [Twilio](https://www.twilio.com/docs/usage/your-request-to-twilio)
-  - TWILIO_ACCOUNT_SID
-  - TWILIO_AUTH_TOKEN
-  - TWILIO_NUMBER (Can be added on [this page](https://www.twilio.com/user/account/phone-numbers/))
+  - TWILIO_VERIFY_API_KEY (Can be generated from your [Twilio account](https://www.twilio.com/console/verify/applications))
 - [Twitter](https://developer.twitter.com/en/docs/basics/authentication/guides/access-tokens)
   - TWITTER_CONSUMER_KEY
   - TWITTER_CONSUMER_SECRET
 
-For [EnvKey](https://www.envkey.com/) support, set ENVKEY to the key of the generated local development key.
+#### Mobile push notification
+If you wish to setup push notification for your mobile apps
 
-When deploying, set appropriate environment variables for production, notably
+- `APNS_CERT_FILE`: Apple notification service certificate(This needs to be .pem file.
+Refer to [this doc](http://www.apptuitions.com/generate-pem-file-for-push-notification/) for how to generate)
+- `APNS_CERT_PASSWORD`: Passphrase for the pem file if you do not strip it out when you exported to pem
+- `APNS_APP_BUNDLE_ID`: The bundle id of your app
+
+FCM support forthcoming.
+
+#### Production configuration
+When deploying to a production system, make sure to set appropriate environment
+variables, in your .env file, notably
 
 ```bash
 DEBUG=0
@@ -90,33 +170,6 @@ HOST=<your-prod-host>
 FLASK_SECRET_KEY=<unique-key>
 PROJECTPATH=/app  # For Heroku
 ```
-
-Use a unique Flask secret key per environment. Flask suggests that ```python -c "import os; print(os.urandom(24))"```
-is a perfectly reasonable way to generate a secret key.
-
-Enviroment keys for Indexing server:
-- RPC_SERVER: Set this to RPC server URL, you want the indexing server to listen to events on.
-- RPC_PROTOCOL: Different connection protocols for RPC server. Options are `https` or `wss`
-
-  example configurations:
-    - Rinkeby:
-      RPC_SERVER: `wss://rinkeby.infura.io/_ws`
-      RPC_PROTOCOL: `wss`
-
-    - Connecting to local RPC server:
-      RPC_SERVER: `http://127.0.0.1:8545/`
-      RPC_PROTOCOL: `https`
-
-- IPFS_DOMAIN: Set this to domain of an IPFS daemon. for example `127.0.0.1` or `gateway.originprotocol.com`
-- IPFS_PORT: port on which the IPFS daemon is listening.
-- REDIS_URL: Set this to point to your local Redis server. For example `redis://127.0.0.1:6379/0`
-
-If you wish to setup push notification for your mobile apps
-- APNS_CERT_FILE: Apple notification service certificate(This needs to be .pem file. Refer to http://www.apptuitions.com/generate-pem-file-for-push-notification/ for how to generate)
-- APNS_CERT_PASSWORD: Passphrase for the pem file if you do not strip it out when you exported to pem
-- APNS_APP_BUNDLE_ID: The bundle id of your app
-
-FCM support forthcoming
 
 ### Set Up Your Database
 
@@ -230,7 +283,7 @@ To deploy a development copy of the site on Heroku, just choose which branch you
 
 | `Master` branch <br>(stable) | `Develop` branch<br> (active development) |
 |---------|----------|
-| [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/OriginProtocol/bridge-server/tree/master) | [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/OriginProtocol/bridge-server/tree/develop) |
+| [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/OriginProtocol/origin-bridge/tree/master) | [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/OriginProtocol/origin-bridge/tree/develop) |
 
 Heroku will prompt you to set config variables. At a minium, you must set these three:
 

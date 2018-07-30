@@ -3,42 +3,33 @@ import datetime
 import http.client
 import json
 import requests
-import secrets
 import sendgrid
 import re
+from random import randint
 
+from marshmallow.exceptions import ValidationError
 from urllib.request import Request, urlopen, HTTPError, URLError
 from sendgrid.helpers.mail import Email, Content, Mail
-from twilio.rest import Client
-from twilio.base.exceptions import TwilioRestException
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import settings
-from database import db
-from database import db_models
 from flask import session
 from logic.service_utils import (
-    PhoneVerificationError,
+    AirbnbVerificationError,
     EmailVerificationError,
     FacebookVerificationError,
+    PhoneVerificationError,
     TwitterVerificationError,
-    AirbnbVerificationError
 )
 from requests_oauthlib import OAuth1
-from sqlalchemy import func
-from util import time_, attestations, urls
+from util import attestations, urls
 from web3 import Web3
 
 signing_key = settings.ATTESTATION_SIGNING_KEY
 
-VC = db_models.VerificationCode
-
-sg = sendgrid.SendGridAPIClient(apikey=settings.SENDGRID_API_KEY)
-
 twitter_request_token_url = 'https://api.twitter.com/oauth/request_token'
 twitter_authenticate_url = 'https://api.twitter.com/oauth/authenticate'
 twitter_access_token_url = 'https://api.twitter.com/oauth/access_token'
-
-CODE_EXPIRATION_TIME_MINUTES = 30
 
 CLAIM_TYPES = {
     'phone': 10,
@@ -55,99 +46,202 @@ class VerificationServiceResponse():
 
 
 class VerificationService:
-    def generate_phone_verification_code(phone):
-        phone = normalize_number(phone)
 
-        db_code = VC.query \
-            .filter(VC.phone == phone) \
-            .first()
-        if db_code is None:
-            db_code = db_models.VerificationCode()
-            db.session.add(db_code)
-        elif (time_.utcnow() - db_code.updated_at).total_seconds() < 10:
-            # If the client has requested a verification code already within
-            # the last 10 seconds,
-            # throw a rate limit error, so they can't just keep creating codes
-            # and guessing them
-            # rapidly.
-            raise PhoneVerificationError(
-                'Please wait briefly before requesting'
-                ' a new verification code.')
-        db_code.phone = phone
-        db_code.code = random_numeric_token()
-        db_code.expires_at = time_.utcnow(
-        ) + datetime.timedelta(minutes=CODE_EXPIRATION_TIME_MINUTES)
-        db.session.commit()
+    def send_phone_verification(country_calling_code, phone, method, locale):
+        """Request a phone number verification using the Twilio Verify API.
+
+        Args:
+            country_calling_code (str): Dialling prefix for the country.
+            phone (str): Phone number in national format.
+            method (str): Method of verification, 'sms' or 'call'.
+            locale (str): Language of the verification.
+
+        Returns:
+            VerificationServiceResponse
+
+        Raises:
+            ValidationError: Verification request failed due to invalid arguments
+            PhoneVerificationError: Verification request failed for a reason not
+                related to the arguments
+        """
+        params = {
+            'country_code': country_calling_code,
+            'phone_number': phone,
+            'via': method,
+            'code_length': 6
+        }
+        if locale:
+            # Locale is provided explicitly
+            # If a locale is not set Twilio will use a sensible default based on
+            # the country of the telephone number
+            params['locale'] = locale
+
+        headers = {
+            'X-Authy-API-Key': settings.TWILIO_VERIFY_API_KEY
+        }
+
+        url = 'https://api.authy.com/protected/json/phones/verification/start'
+        response = requests.post(url, params=params, headers=headers)
+
         try:
-            send_code_via_sms(phone, db_code.code)
-        except TwilioRestException as e:
-            db.session.rollback()
-            raise PhoneVerificationError(
-                'Could not send'
-                ' verification code.')
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as exc:
+            if response.json()['error_code'] == "60033":
+                raise ValidationError('Phone number is invalid.',
+                                      field_names=['phone'])
+            elif response.json()['error_code'] == "60082":
+                raise ValidationError('Cannot send SMS to landline.',
+                                      field_names=['phone'])
+            else:
+                # Remaining error codes are due to Twilio account issues or
+                # configuration of API key.
+                # See https://www.twilio.com/docs/verify/return-and-error-codes
+                raise PhoneVerificationError(
+                    'Could not send verification code. Please try again shortly.'
+                )
+
         return VerificationServiceResponse()
 
-    def verify_phone(phone, code, eth_address):
-        phone = normalize_number(phone)
+    def verify_phone(country_calling_code, phone, code, eth_address):
+        """Check a phone verification code against the Twilio Verify API for a
+        phone number.
 
-        db_code = VC.query \
-            .filter(VC.phone == phone) \
-            .first()
-        if db_code is None:
-            raise PhoneVerificationError(
-                'The given phone number was not found.')
-        if code != db_code.code:
-            raise PhoneVerificationError('The code you provided'
-                                         ' is invalid.')
-        if time_.utcnow() > db_code.expires_at:
-            raise PhoneVerificationError('The code you provided'
-                                         ' has expired.')
-        # TODO: determine what the text should be
-        data = 'phone verified'
-        # TODO: determine claim type integer code for phone verification
-        signature = attestations.generate_signature(
-            signing_key, eth_address, CLAIM_TYPES['phone'], data)
-        return VerificationServiceResponse({
-            'signature': signature,
-            'claim_type': CLAIM_TYPES['phone'],
-            'data': data
-        })
+        Args:
+            country_calling_code (str): Dialling prefix for the country.
+            phone (str): Phone number in national format.
+            code (int): Verification code for the country_calling_code and phone
+                combination
+            eth_address (str): Address of ERC725 identity token for claim
 
-    def generate_email_verification_code(email):
-        db_code = VC.query \
-            .filter(func.lower(VC.email) == func.lower(email)) \
-            .first()
-        if db_code is None:
-            db_code = db_models.VerificationCode()
-            db.session.add(db_code)
-        elif (time_.utcnow() - db_code.updated_at).total_seconds() < 10:
-            # If the client has requested a verification code already within
-            # the last 10 seconds, throw a rate limit error, so they can't just
-            # keep creating codes and guessing them rapidly.
+        Returns:
+            VerificationServiceResponse
+
+        Raises:
+            ValidationError: Verification request failed due to invalid arguments
+            PhoneVerificationError: Verification request failed for a reason not
+                related to the arguments
+        """
+        params = {
+            'country_code': country_calling_code,
+            'phone_number': phone,
+            'verification_code': code
+        }
+
+        headers = {
+            'X-Authy-API-Key': settings.TWILIO_VERIFY_API_KEY
+        }
+
+        url = 'https://api.authy.com/protected/json/phones/verification/check'
+        response = requests.get(url, params=params, headers=headers)
+
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as exc:
+            if response.json()['error_code'] == '60023':
+                # This error code could also mean that no phone verification was ever
+                # created for that country calling code and phone number
+                raise ValidationError('Verification code has expired.',
+                                      field_names=['code'])
+            elif response.json()['error_code'] == '60022':
+                raise ValidationError('Verification code is incorrect.',
+                                      field_names=['code'])
+            else:
+                raise PhoneVerificationError(
+                    'Could not verify code. Please try again shortly.'
+                )
+
+        if response.json()['success'] is True:
+            # This may be unnecessary because the response has a 200 status code
+            # but it a good precaution to handle any inconsistency between the
+            # success field and the status code
+            data = 'phone verified'
+            # TODO: determine claim type integer code for phone verification
+            signature = attestations.generate_signature(
+                signing_key, eth_address, CLAIM_TYPES['phone'], data)
+            return VerificationServiceResponse({
+                'signature': signature,
+                'claim_type': CLAIM_TYPES['phone'],
+                'data': data
+            })
+
+        raise PhoneVerificationError(
+            'Could not verify code. Please try again shortly.'
+        )
+
+    def send_email_verification(email):
+        """Send a verification code to an email address using the SendGrid API.
+        The verification code and the expiry are stored in a server side session
+        to compare against user input.
+
+        Args:
+            email (str): Email address to send the verification to
+
+        Raises:
+            ValidationError: Verification request failed due to invalid arguments
+            EmailVerificationError: Verification request failed for a reason not
+                related to the arguments
+        """
+
+        verification_code = str(randint(100000, 999999))
+        # Save the verification code and expiry in a server side session
+        session['email_attestation'] = {
+            'email': generate_password_hash(email),
+            'code': verification_code,
+            'expiry': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
+        }
+
+        # Build the email containing the verification code
+        from_email = Email(settings.SENDGRID_FROM_EMAIL)
+        to_email = Email(email)
+        subject = 'Your Origin Verification Code'
+        message = 'Your Origin verification code is {}.'.format(
+            verification_code)
+        message += ' It will expire in 30 minutes.'
+        content = Content('text/plain', message)
+        mail = Mail(from_email, subject, to_email, content)
+
+        try:
+            _send_email_using_sendgrid(mail)
+        except Exception as exc:
+            # SendGrid does not have its own error types but might in the future
+            # See https://github.com/sendgrid/sendgrid-python/issues/315
             raise EmailVerificationError(
-                'Please wait briefly before requesting'
-                ' a new verification code.')
-        db_code.email = email
-        db_code.code = random_numeric_token()
-        db_code.expires_at = time_.utcnow() + datetime.timedelta(
-            minutes=CODE_EXPIRATION_TIME_MINUTES)
-        db.session.commit()
-        send_code_via_email(email, db_code.code)
+                'Could not send verification code. Please try again shortly.'
+            )
+
         return VerificationServiceResponse()
 
     def verify_email(email, code, eth_address):
-        db_code = VC.query \
-            .filter(func.lower(VC.email) == func.lower(email)) \
-            .first()
-        if db_code is None:
-            raise EmailVerificationError('The given email was'
-                                         ' not found.')
-        if code != db_code.code:
-            raise EmailVerificationError('The code you provided'
-                                         ' is invalid.')
-        if time_.utcnow() > db_code.expires_at:
-            raise EmailVerificationError('The code you provided'
-                                         ' has expired.')
+        """Check a email verification code against the verification code stored
+        in the session for that email.
+
+        Args:
+            email (str): Email address being verified
+            code (int): Verification code for the email address
+            eth_address (str): Address of ERC725 identity token for claim
+
+        Returns:
+            VerificationServiceResponse
+
+        Raises:
+            ValidationError: Verification request failed due to invalid arguments
+        """
+        verification_obj = session.get('email_attestation', None)
+        if not verification_obj:
+            raise ValidationError('No verification code was found.')
+
+        if not check_password_hash(verification_obj['email'], email):
+            raise ValidationError(
+                'No verification code was found for that email.', 'email'
+            )
+
+        if verification_obj['expiry'] < datetime.datetime.utcnow():
+            raise ValidationError('Verification code has expired.', 'code')
+
+        if verification_obj['code'] != code:
+            raise ValidationError('Verification code is incorrect.', 'code')
+
+        session.pop('email_attestation')
 
         # TODO: determine what the text should be
         data = 'email verified'
@@ -267,11 +361,14 @@ class VerificationService:
             response = urlopen(request)
         except HTTPError as e:
             if e.code == 404:
-                raise AirbnbVerificationError('Airbnb user id: ' + airbnbUserId + ' not found.')
+                raise AirbnbVerificationError(
+                    'Airbnb user id: ' + airbnbUserId + ' not found.')
             else:
-                raise AirbnbVerificationError("Can not fetch user's Airbnb profile.")
+                raise AirbnbVerificationError(
+                    "Can not fetch user's Airbnb profile.")
         except URLError as e:
-            raise AirbnbVerificationError("Can not fetch user's Airbnb profile.")
+            raise AirbnbVerificationError(
+                "Can not fetch user's Airbnb profile.")
 
         if code not in response.read().decode('utf-8'):
             raise AirbnbVerificationError(
@@ -307,48 +404,18 @@ def get_airbnb_verification_code(eth_address, airbnbUserid):
         )
 
 
-def normalize_number(phone):
-    try:
-        lookup = get_twilio_client().lookups.phone_numbers(phone).fetch()
-        return lookup.national_format
-    except TwilioRestException as e:
-        raise PhoneVerificationError('Invalid phone number.')
-
-
 def numeric_eth(str_eth_address):
     return int(str_eth_address, 16)
 
 
-# Generates a six-digit numeric token.
-def random_numeric_token():
-    # Don't use tokens that are close to 0 that will look stupid to users.
-    rand = secrets.randbelow(1000000 - 1000)
-    return '{0:06d}'.format(rand + 1000)
+def _send_email_using_sendgrid(mail):
+    """Send a SendGrid mail object using the SendGrid API.
 
+    This functionality is in a separate function so it can be mocked during
+    tests.
 
-def send_code_via_sms(phone, code):
-    try:
-        get_twilio_client().messages.create(
-            to=phone,
-            from_=settings.TWILIO_NUMBER,
-            body=('Your Origin verification code is {}.'
-                  ' It will expire in 30 minutes.').format(code))
-    except TwilioRestException as e:
-        raise e
-
-
-def send_code_via_email(address, code):
-    from_email = Email(settings.SENDGRID_FROM_EMAIL)
-    to_email = Email(address)
-    subject = 'Your Origin Verification Code'
-    content = Content(
-        'text/plain',
-        ('Your Origin verification code is {}.'
-         ' It will expire in 30 minutes.').format(code))
-    mail = Mail(from_email, subject, to_email, content)
+    Args:
+        mail (sendgrid.helpers.mail.mail.Mail) - mail to be sent
+    """
+    sg = sendgrid.SendGridAPIClient(apikey=settings.SENDGRID_API_KEY)
     sg.client.mail.send.post(request_body=mail.get())
-
-
-# proxy function so that we can do caching on this later on if we want to
-def get_twilio_client():
-    return Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)

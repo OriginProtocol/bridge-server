@@ -30,6 +30,14 @@ EVENT_HASH_TO_EVENT_TYPE_MAP = {
 }
 
 
+class EmptyIPFSHashError(Exception):
+    pass
+
+
+NULL_BYTES32 = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' \
+    b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+
+
 class DatabaseIndexer():
     """
     DatabaseIndexer persists events in a relational database.
@@ -94,6 +102,7 @@ class DatabaseIndexer():
         Not sure if we would have updates on Review, sticking to classmethod
         naming covention for now.
         """
+        # Load review data (which includes review text) from IPFS.
         review_data['ipfs_data'] = \
             IPFSHelper().file_from_hash(review_data['ipfs_hash'])
         review_obj = Review(**review_data)
@@ -138,17 +147,22 @@ class EventHandler():
         """
         return EVENT_HASH_TO_EVENT_TYPE_MAP.get(event_hash)
 
-    def _get_new_listing_address(self, payload):
+    def _get_new_listing_address(self, event):
         """
         Returns the address of a new listing.
+
+        Args:
+            event(dict): A NewListing event.
+
+        Returns:
+            Address of the newly created Listing contract.
         """
-        contract_helper = ContractHelper(web3=self.web3)
-        contract = contract_helper.get_instance('ListingsRegistry',
-                                                payload['address'])
-        registry_index = contract_helper.convert_event_data('NewListing',
-                                                            payload['data'])[0]
-        listing_data = contract.functions.getListing(registry_index).call()
-        return listing_data[0]
+        event_data = ContractHelper.convert_event_data('NewListing',
+                                                       event['data'])
+        # First element in data is the registry index, then second
+        # is the address of the listing itself.
+        address = Web3.toChecksumAddress(event_data[1])
+        return address
 
     def _fetch_listing_data(self, address):
         """
@@ -183,13 +197,21 @@ class EventHandler():
         }
         return purchase_data
 
-    def _get_review_data(self, payload):
+    def _get_review_data(self, event):
         """
         Parses and returns Review data from PurchaseReview event.
         """
         event_data = ContractHelper.convert_event_data('PurchaseReview',
-                                                       payload['data'])
-        contract_address = Web3.toChecksumAddress(payload['address'])
+                                                       event['data'])
+        contract_address = Web3.toChecksumAddress(event['address'])
+
+        # Due to a bug in our contract migration script, some events were
+        # recorded on the Rinkeby and Ropsten test blockchains
+        # with a null IPS hash.
+        # See https://github.com/OriginProtocol/origin-js/issues/271
+        ipfs_hash = event_data[4]
+        if ipfs_hash == NULL_BYTES32:
+            raise EmptyIPFSHashError
 
         review_data = {
             "contract_address": contract_address,
@@ -197,11 +219,11 @@ class EventHandler():
             "reviewee_address": event_data[1],
             "role": Review.ROLES[int(event_data[2])],
             "rating": int(event_data[3]),
-            "ipfs_hash": hex_to_base58(event_data[4]),
+            "ipfs_hash": hex_to_base58(ipfs_hash),
         }
         return review_data
 
-    def process(self, payload):
+    def process(self, event):
         """
         Processes an event by loading relevant data and calling
         indexer/notifier backends.
@@ -209,51 +231,61 @@ class EventHandler():
         TODO(franck): Filter out possible non-OriginProtocol events that
             could have the same hash as OriginProtocol ones.
         """
-        event_hash = payload['topics'][0].hex()
+        event_hash = event['topics'][0].hex()
         event_type = self._get_event_type(event_hash)
 
-        if event_type == EventType.NEW_LISTING:
-            address = self._get_new_listing_address(payload)
-            data = self._fetch_listing_data(address)
-            listing_obj = self.db_indexer.create_or_update_listing(data)
-            self.notifier.notify_listing(listing_obj)
-            self.search_indexer.create_or_update_listing(data)
+        logging.debug("Processing event: type=%s event=%s",
+                      event_type, event)
 
-        elif event_type == EventType.LISTING_CHANGE:
-            address = Web3.toChecksumAddress(payload['address'])
-            data = self._fetch_listing_data(address)
-            listing_obj = self.db_indexer.create_or_update_listing(data)
-            self.notifier.notify_listing_update(listing_obj)
-            self.search_indexer.create_or_update_listing(data)
+        try:
+            if event_type == EventType.NEW_LISTING:
+                address = self._get_new_listing_address(event)
+                data = self._fetch_listing_data(address)
+                listing_obj = self.db_indexer.create_or_update_listing(data)
+                self.notifier.notify_listing(listing_obj)
+                self.search_indexer.create_or_update_listing(data)
 
-        elif event_type == EventType.LISTING_PURCHASED:
-            address = ContractHelper.convert_event_data('ListingPurchased',
-                                                        payload['data'])
-            data = self._fetch_purchase_data(address)
-            purchase_obj = self.db_indexer.create_or_update_purchase(data)
-            if purchase_obj is not None:
-                self.notifier.notify_purchased(purchase_obj)
-                self.search_indexer.create_or_update_purchase(data)
+            elif event_type == EventType.LISTING_CHANGE:
+                address = Web3.toChecksumAddress(event['address'])
+                data = self._fetch_listing_data(address)
+                listing_obj = self.db_indexer.create_or_update_listing(data)
+                self.notifier.notify_listing_update(listing_obj)
+                self.search_indexer.create_or_update_listing(data)
 
-        elif event_type == EventType.PURCHASE_CHANGE:
-            address = Web3.toChecksumAddress(payload['address'])
-            data = self._fetch_purchase_data(address)
-            purchase_obj = self.db_indexer.create_or_update_purchase(data)
-            if purchase_obj is not None:
-                self.notifier.notify_purchased(purchase_obj)
-                self.search_indexer.create_or_update_purchase(data)
+            elif event_type == EventType.LISTING_PURCHASED:
+                address = ContractHelper.convert_event_data('ListingPurchased',
+                                                            event['data'])
+                data = self._fetch_purchase_data(address)
+                purchase_obj = self.db_indexer.create_or_update_purchase(data)
+                if purchase_obj is not None:
+                    self.notifier.notify_purchased(purchase_obj)
+                    self.search_indexer.create_or_update_purchase(data)
 
-        elif event_type == EventType.PURCHASE_REVIEW:
-            data = self._get_review_data(payload)
-            review_obj = self.db_indexer.create_or_update_review(data)
-            self.notifier.notify_review(review_obj)
-            self.search_indexer.create_or_update_review(data)
+            elif event_type == EventType.PURCHASE_CHANGE:
+                address = Web3.toChecksumAddress(event['address'])
+                data = self._fetch_purchase_data(address)
+                purchase_obj = self.db_indexer.create_or_update_purchase(data)
+                if purchase_obj is not None:
+                    self.notifier.notify_purchased(purchase_obj)
+                    self.search_indexer.create_or_update_purchase(data)
 
-        else:
-            logging.info("Received unexpected event type %s hash %s",
-                         event_type, event_hash)
+            elif event_type == EventType.PURCHASE_REVIEW:
+                data = self._get_review_data(event)
+                review_obj = self.db_indexer.create_or_update_review(data)
+                self.notifier.notify_review(review_obj)
+                self.search_indexer.create_or_update_review(data)
+
+            else:
+                logging.error("Received unexpected event type %s hash %s",
+                              event_type, event_hash)
+
+        except EmptyIPFSHashError:
+            # TODO: Handle as a critical error once we are live on mainnet.
+            logging.error("Empty IPFS Hash. Skipping event %s", event)
 
         # After successfully processing the event, update the event tracker.
-        self._update_tracker(block_index=payload['blockNumber'],
-                             log_index=payload['logIndex'],
-                             transaction_index=payload['transactionIndex'])
+        self._update_tracker(block_index=event['blockNumber'],
+                             log_index=event['logIndex'],
+                             transaction_index=event['transactionIndex'])
+
+        logging.debug("Finished processing event")

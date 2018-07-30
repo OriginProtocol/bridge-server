@@ -56,6 +56,7 @@ PROJECTPATH = get_env_default('PROJECTPATH') or os.getcwd()
 FLASK_SECRET_KEY = get_env_default('FLASK_SECRET_KEY')
 
 DATABASE_URL = get_env_default('DATABASE_URL')
+TEST_DATABASE_URL = get_env_default('TEST_DATABASE_URL')
 
 TEMPLATE_ROOT = os.path.join(PROJECTPATH, 'templates')
 STATIC_ROOT = os.path.join(PROJECTPATH, 'static')
@@ -67,9 +68,7 @@ SENDGRID_FROM_EMAIL = get_env_default('SENDGRID_FROM_EMAIL')
 
 SENDGRID_API_KEY = get_env_default('SENDGRID_API_KEY')
 
-TWILIO_ACCOUNT_SID = get_env_default('TWILIO_ACCOUNT_SID')
-TWILIO_AUTH_TOKEN = get_env_default('TWILIO_AUTH_TOKEN')
-TWILIO_NUMBER = get_env_default('TWILIO_NUMBER')
+TWILIO_VERIFY_API_KEY = get_env_default('TWILIO_VERIFY_API_KEY')
 
 RPC_SERVER = get_env_default('RPC_SERVER')
 RPC_PROTOCOL = get_env_default('RPC_PROTOCOL')

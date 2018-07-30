@@ -1,12 +1,11 @@
 from views import web_views  # noqa
 import mock
+import responses
+
+from flask import session
 
 from tests.helpers.rest_utils import post_json, json_of_response
 from tests.helpers.eth_utils import sample_eth_address, str_eth
-
-
-from database import db_models
-VC = db_models.VerificationCode
 
 
 def test_index(client):
@@ -14,47 +13,76 @@ def test_index(client):
     assert resp.status_code == 200
 
 
-def test_phone_verify(client, mock_send_sms, mock_normalize_number):
-    phone = "6666666666"
-    resp = post_json(client,
-                     "/api/attestations/phone/generate-code",
-                     {"phone": phone})
-    assert resp.status_code == 200
-    assert json_of_response(resp) == {}
+def test_request_phone_verify(client):
+    with responses.RequestsMock() as rsps:
+        rsps.add(
+            responses.POST,
+            'https://api.authy.com/protected/json/phones/verification/start',
+            status=200
+        )
 
-    db_code = VC.query.filter(VC.phone == phone).first()
-    assert db_code.code is not None
+        args = {
+            'country_calling_code': '1',
+            'phone': '12341234',
+            'method': 'sms'
+        }
+        response = post_json(client, '/api/attestations/phone/generate-code',
+                             args)
 
-    resp = post_json(client,
-                     "/api/attestations/phone/verify",
-                     {"phone": phone,
-                      "identity": str_eth(sample_eth_address),
-                      'code': db_code.code})
-    resp_json = json_of_response(resp)
-    assert resp.status_code == 200
-    assert len(resp_json['signature']) == 132
-    assert resp_json['data'] == 'phone verified'
+        assert response.status_code == 200
+        assert json_of_response(response) == {}
 
 
-@mock.patch('python_http_client.client.Client')
-def test_email_verify(MockHttpClient, client):
-    email = 'test@dumb.bo'
-    resp = post_json(client,
-                     "/api/attestations/email/generate-code",
-                     {"email": email})
+@responses.activate
+def test_verify_phone(client):
+    with responses.RequestsMock() as rsps:
+        rsps.add(
+            responses.GET,
+            'https://api.authy.com/protected/json/phones/verification/check',
+            json={
+                'message': 'Verification code is correct.',
+                'success': True
+            }
+        )
 
-    db_code = VC.query.filter(VC.email == email).first()
-    assert db_code.code is not None
+        args = {
+            'country_calling_code': '1',
+            'phone': '12341234',
+            'code': '123456',
+            'identity': str_eth(sample_eth_address)
+        }
+        response = post_json(client, '/api/attestations/phone/verify', args)
 
-    resp = post_json(client,
-                     "/api/attestations/email/verify",
-                     {"email": email,
-                      "identity": str_eth(sample_eth_address),
-                      'code': db_code.code})
-    resp_json = json_of_response(resp)
-    assert resp.status_code == 200
-    assert len(resp_json['signature']) == 132
-    assert resp_json['data'] == 'email verified'
+        assert response.status_code == 200
+        response_json = json_of_response(response)
+        assert len(response_json['signature']) == 132
+        assert response_json['data'] == 'phone verified'
+
+
+@mock.patch('logic.attestation_service._send_email_using_sendgrid')
+def test_email_verify(mock_send_email_using_sendgrid, client):
+    mock_send_email_using_sendgrid.return_value = True
+
+    data = {
+        'email': 'origin@protocol.foo'
+    }
+
+    response = post_json(client, '/api/attestations/email/generate-code', data)
+
+    assert response.status_code == 200
+    assert 'email_attestation' in session
+
+    verification_code = session['email_attestation']['code']
+
+    data['identity'] = str_eth(sample_eth_address)
+    data['code'] = verification_code
+
+    response = post_json(client, '/api/attestations/email/verify', data)
+
+    assert response.status_code == 200
+    response_json = json_of_response(response)
+    assert len(response_json['signature']) == 132
+    assert response_json['data'] == 'email verified'
 
 
 @mock.patch("http.client.HTTPSConnection")
