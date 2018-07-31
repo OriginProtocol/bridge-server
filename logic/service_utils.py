@@ -14,7 +14,11 @@ class AccountNotFoundError(ServiceError):
     pass
 
 
-class PhoneVerificationError(ServiceError):
+class AirbnbVerificationError(ServiceError):
+    pass
+
+
+class DBIndexingError(ServiceError):
     pass
 
 
@@ -26,11 +30,15 @@ class FacebookVerificationError(ServiceError):
     pass
 
 
-class TwitterVerificationError(ServiceError):
+class SearchIndexingError(ServiceError):
     pass
 
 
-class AirbnbVerificationError(ServiceError):
+class PhoneVerificationError(ServiceError):
+    pass
+
+
+class TwitterVerificationError(ServiceError):
     pass
 
 
