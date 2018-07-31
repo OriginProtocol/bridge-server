@@ -18,7 +18,7 @@ class AirbnbVerificationError(ServiceError):
     pass
 
 
-class DBIndexingError(ServiceError):
+class DatabaseIndexingError(ServiceError):
     pass
 
 

@@ -4,7 +4,7 @@ from marshmallow import ValidationError
 
 from database import db
 from database.db_models import Listing, Purchase, Review
-from logic.service_utils import DBIndexingError
+from logic.service_utils import DatabaseIndexingError
 from util.ipfs import IPFSHelper
 
 
@@ -104,10 +104,10 @@ class DatabaseIndexer():
         if not contract_address:
             raise ValidationError("Contract address missing.")
 
-        # TODO(franck): Implement. Will probably require updating
-        #    the listing table schema.
+        # TODO(franck): Implement this logic. Will probably require updating
+        #    the listing table database schema.
         try:
-            logging.info("Indexing in DB listing: %s", listing)
+            logging.info("Indexing listing: %s", listing)
         except Exception as e:
-            logging.error("Indexing failure: %s", str(e))
-            raise DBIndexingError("Failed indexing listing.")
+            logging.error("Database indexing failure: %s", str(e))
+            raise DatabaseIndexingError("Failed indexing listing.")

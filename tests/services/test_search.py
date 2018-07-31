@@ -23,12 +23,12 @@ class TestSearchIndexer():
         }
         search_indexer.index_listing(listing)
 
-        # Test search-backend raising an exception
+        # Test search-backend raising an exception.
         client_mock.index_listing.side_effect = Exception("failure !")
         with pytest.raises(SearchIndexingError):
             search_indexer.index_listing(listing)
 
-        # Test missing contract address
+        # Test missing contract address.
         listing = {
             'title': 'test title',
             'description': 'test description',
