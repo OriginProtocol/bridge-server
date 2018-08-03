@@ -228,7 +228,7 @@ class VerificationService:
         """
         verification_obj = session.get('email_attestation', None)
         if not verification_obj:
-            raise ValidationError('No verification code was found.')
+            raise EmailVerificationError('No verification code was found.')
 
         if not check_password_hash(verification_obj['email'], email):
             raise EmailVerificationError(

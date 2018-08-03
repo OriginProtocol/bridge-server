@@ -299,10 +299,10 @@ def test_verify_email_no_verification_sent():
     }
 
     with mock.patch('logic.attestation_service.session', dict()):
-        with pytest.raises(ValidationError) as validation_err:
+        with pytest.raises(EmailVerificationError) as verification_err:
             VerificationService.verify_email(**args)
 
-    assert(validation_err.value.messages[0]) == \
+    assert(verification_err.value.message) == \
         'No verification code was found.'
 
 
@@ -322,12 +322,11 @@ def test_verify_email_invalid_email():
     }
 
     with mock.patch('logic.attestation_service.session', session_dict):
-        with pytest.raises(ValidationError) as validation_err:
+        with pytest.raises(EmailVerificationError) as verification_err:
             VerificationService.verify_email(**args)
 
-    assert(validation_err.value.messages[0]) == \
+    assert(verification_err.value.message) == \
         'No verification code was found for that email.'
-    assert(validation_err.value.field_names[0]) == 'email'
 
 
 def test_facebook_auth_url():
