@@ -231,8 +231,8 @@ class VerificationService:
             raise ValidationError('No verification code was found.')
 
         if not check_password_hash(verification_obj['email'], email):
-            raise ValidationError(
-                'No verification code was found for that email.', 'email'
+            raise EmailVerificationError(
+                'No verification code was found for that email.'
             )
 
         if verification_obj['expiry'] < datetime.datetime.utcnow():
