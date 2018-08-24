@@ -107,20 +107,6 @@ class ContractHelper:
                             return Enum(enum_name, " ".join(
                                 e["name"] for e in members), start=0)
 
-    @classmethod
-    def convert_event_data(cls, event_type, data):
-        if event_type == 'NewListing':
-            return decode_abi(['uint256', 'address'], hexbytes.HexBytes(data))
-        elif event_type == 'ListingPurchased':
-            addr = decode_single('address',
-                                 hexbytes.HexBytes(data))
-            return to_checksum_address(addr)
-        elif event_type == 'PurchaseChange':
-            return int(data, 0)
-        elif event_type == 'PurchaseReview':
-            return decode_abi(['address', 'address', 'uint8',
-                               'uint8', 'bytes32'], hexbytes.HexBytes(data))
-
     @staticmethod
     def numeric_eth(str_eth_address):
         return int(str_eth_address, 16)
