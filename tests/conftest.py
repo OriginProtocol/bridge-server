@@ -22,9 +22,9 @@ from mock import patch
 from testing.postgresql import Postgresql
 
 from app import app as flask_app
+from app.app_config import init_api
 from database import db as _db
 from config import settings
-
 
 
 class PollDelayCounter:
@@ -85,6 +85,7 @@ def test_db(app):
 def app():
     _app = flask_app
     _app.config.from_object(__name__ + '.TestConfig')
+    init_api(_app)
 
     with test_db(_app) as test_db_url:
         _app.config['SQLALCHEMY_DATABASE_URI'] = test_db_url
@@ -263,6 +264,3 @@ def get_compiled_contract(contract_name):
     with open(filename) as f:
         contract_interface = json.loads(f.read())
     return contract_interface
-
-
-

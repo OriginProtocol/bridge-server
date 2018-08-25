@@ -1,11 +1,8 @@
 import logging
 import json
-import hexbytes
 from web3 import Web3, HTTPProvider, WebsocketProvider
 from web3.contract import Contract
 from web3.middleware import geth_poa_middleware
-from eth_abi import decode_single, decode_abi
-from eth_utils import to_checksum_address
 
 from config import settings
 from enum import Enum

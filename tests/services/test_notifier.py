@@ -1,5 +1,3 @@
-from mock import MagicMock
-
 from database.db_models import EthNotificationEndpoint, EthNotificationTypes
 from logic.notifier_service import register_eth_notification
 from tests.helpers.eth_utils import sample_eth_address, str_eth
@@ -55,4 +53,3 @@ def test_endpoint_notification(
         eth_address=seller_address).count() == 2)
     assert(EthNotificationEndpoint.query.filter_by(
         eth_address=buyer_address).count() == 2)
-

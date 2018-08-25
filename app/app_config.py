@@ -2,11 +2,11 @@ import logging.config
 import sys
 
 import flask_migrate
-import flask_restless
 
 from config import settings
 from database import db
 from flask_session import Session
+from api import start_restful_api
 
 
 class AppConfig(object):
@@ -17,6 +17,10 @@ class AppConfig(object):
     SQLALCHEMY_DATABASE_URI = settings.DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = False
+
+
+def init_api(app):
+    start_restful_api(app)
 
 
 def init_app(app):
@@ -30,6 +34,7 @@ def init_app(app):
 def init_prod_app(app):
     app.config.from_object(__name__ + '.AppConfig')
     init_app(app)
+    init_api(app)
 
     # Setup logging.
     if not settings.DEBUG:
