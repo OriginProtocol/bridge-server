@@ -1,5 +1,6 @@
 from __future__ import with_statement
 from alembic import context
+from flask import current_app
 from sqlalchemy import engine_from_config, pool
 from logging.config import fileConfig
 import logging
@@ -17,7 +18,6 @@ logger = logging.getLogger('alembic.env')
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-from flask import current_app
 config.set_main_option('sqlalchemy.url',
                        current_app.config.get('SQLALCHEMY_DATABASE_URI'))
 target_metadata = current_app.extensions['migrate'].db.metadata
@@ -80,6 +80,7 @@ def run_migrations_online():
             context.run_migrations()
     finally:
         connection.close()
+
 
 if context.is_offline_mode():
     run_migrations_offline()
