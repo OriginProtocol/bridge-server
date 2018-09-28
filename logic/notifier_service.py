@@ -1,5 +1,5 @@
 from database import db
-from database.db_models import EthNotificationEndpoint, EthNotificationTypes
+from database.models import EthNotificationEndpoint, EthNotificationTypes
 from util.ipfs import IPFSHelper
 from config import settings
 from enum import Enum
