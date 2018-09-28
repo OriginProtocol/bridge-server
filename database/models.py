@@ -1,7 +1,6 @@
 from database import db
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import func
 
 
 class AttestationTypes(Enum):
@@ -35,4 +34,3 @@ class EthNotificationEndpoint(db.Model):
     verified = db.Column(db.Boolean())
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime(timezone=True))
-
