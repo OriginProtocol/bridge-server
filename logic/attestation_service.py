@@ -1,6 +1,4 @@
 import datetime
-import http.client
-import json
 import logging
 import requests
 import sendgrid
@@ -378,6 +376,7 @@ class VerificationService:
 
     def verify_twitter(oauth_verifier, eth_address):
         # Verify authenticity of user
+
         if 'request_token' not in session:
             raise TwitterVerificationError('Session not found.')
 
@@ -437,15 +436,13 @@ class VerificationService:
 
         code = get_airbnb_verification_code(eth_address, airbnbUserId)
 
-        # TODO: determine if this user agent is acceptable.
-        # We need to set an user agent otherwise Airbnb returns 403
-        request = Request(
-            url='https://www.airbnb.com/users/show/' + airbnbUserId,
-            headers={'User-Agent': 'Origin Protocol client-0.1.0'}
-        )
-
         try:
-            response = urlopen(request)
+            # TODO: determine if this user agent is acceptable.
+            # We need to set an user agent otherwise Airbnb returns 403
+            response = urlopen(Request(
+                url='https://www.airbnb.com/users/show/' + airbnbUserId,
+                headers={'User-Agent': 'Origin Protocol client-0.1.0'}
+            ))
         except HTTPError as e:
             if e.code == 404:
                 raise AirbnbVerificationError(
